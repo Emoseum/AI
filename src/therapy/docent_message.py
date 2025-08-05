@@ -10,6 +10,7 @@
 from typing import Dict, List, Any, Optional
 from datetime import datetime
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +18,10 @@ logger = logging.getLogger(__name__)
 class DocentMessageSystem:
     """ACT 기반 도슨트 메시지 생성 시스템"""
 
-    def __init__(self, user_manager):
+    def __init__(self, user_manager, emoseum_webhook_service=None):
         self.user_manager = user_manager
         self.docent_gpt = None  # GPT 도슨트 주입받을 예정
+        self.emoseum_webhook_service = emoseum_webhook_service
 
         logger.info("DocentMessageSystem 초기화 완료 (GPT)")
 
@@ -73,8 +75,42 @@ class DocentMessageSystem:
         # 생성 완료 로깅
         logger.info(f"도슨트 메시지 생성 완료: 사용자 {user.user_id}")
 
+        # Emoseum 서버에 guided_question 업데이트
+        if self.emoseum_webhook_service:
+            guided_question = result.get('content', {}).get('guidance', '')
+            if guided_question:
+                # gallery_item에서 diary_id 추출
+                diary_id = getattr(gallery_item, 'diary_id', None)
+                if diary_id:
+                    logger.info(f"Guided question 전송 시도: diary_id={diary_id}")
+                    asyncio.create_task(
+                        self._update_guided_question_async(
+                            diary_id, 
+                            guided_question, 
+                            user.user_id
+                        )
+                    )
+                else:
+                    logger.warning(f"Gallery item에 diary_id가 없습니다: {gallery_item.item_id}")
+
         return result
 
+    async def _update_guided_question_async(self, diary_id: str, guided_question: str, user_id: str):
+        """Emoseum 서버에 guided_question 비동기 업데이트"""
+        try:
+            result = await self.emoseum_webhook_service.send_gallery_item_update(
+                diary_id=diary_id,
+                guided_question=guided_question,
+                user_id=user_id
+            )
+            
+            if result.get('success'):
+                logger.info(f"Gallery item 업데이트 성공: diary_id={diary_id}")
+            else:
+                logger.error(f"Gallery item 업데이트 실패: {result.get('error')}")
+                
+        except Exception as e:
+            logger.error(f"Gallery item 비동기 업데이트 오류: {e}")
 
     def validate_message_quality(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """GPT 생성 메시지 품질 검증"""
@@ -162,7 +198,6 @@ class DocentMessageSystem:
             "quality_validation_enabled": True,
             "handover_status": "completed",
         }
-
 
     def get_message_analytics(self, message: Dict[str, Any]) -> Dict[str, Any]:
         """메시지 분석 정보 반환"""

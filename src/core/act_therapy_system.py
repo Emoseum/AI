@@ -66,7 +66,12 @@ class ACTTherapySystem:
 
         # 컴포넌트들 초기화
         self.prompt_architect = PromptArchitect()
-        self.docent_message_system = DocentMessageSystem(self.user_manager)
+        
+        # EmoseumWebhookService 초기화
+        from ..dependencies import get_emoseum_webhook_service
+        emoseum_webhook_service = get_emoseum_webhook_service()
+        
+        self.docent_message_system = DocentMessageSystem(self.user_manager, emoseum_webhook_service)
 
         # GPT 서비스들 주입
         self._inject_gpt_services()
@@ -247,7 +252,7 @@ class ACTTherapySystem:
             "gpt_prompt_generation_ready": True,
         }
 
-    def process_emotion_journey(self, user_id: str, diary_text: str) -> Dict[str, Any]:
+    def process_emotion_journey(self, user_id: str, diary_text: str, diary_id: str = None) -> Dict[str, Any]:
         """ACT 4단계 감정 여정 처리 (Step 1-2: The Moment → Reflection)"""
 
         logger.info(f"사용자 {user_id} 감정 여정 시작")
@@ -255,6 +260,8 @@ class ACTTherapySystem:
         try:
             # GPT를 통한 감정 분석
             emotion_analysis = self._analyze_emotion_with_gpt(diary_text, user_id)
+            print(f"[DEBUG] Emotion analysis result: {emotion_analysis}")
+            print(f"[DEBUG] VAD scores from analysis: {emotion_analysis.get('vad_scores')}")
 
             user = self.user_manager.get_user(user_id)
             if not user:
@@ -265,6 +272,10 @@ class ACTTherapySystem:
                 user, emotion_analysis, diary_text
             )
 
+            # EmoseumWebhookService 가져오기
+            from ..dependencies import get_emoseum_webhook_service
+            emoseum_webhook_service = get_emoseum_webhook_service()
+            
             gallery_item_id = self.gallery_manager.create_gallery_item(
                 user_id=user_id,
                 diary_text=diary_text,
@@ -279,6 +290,8 @@ class ACTTherapySystem:
                 ),
                 gpt_prompt_tokens=reflection_result.get("prompt_tokens", 0),
                 prompt_generation_time=reflection_result.get("generation_time", 0.0),
+                diary_id=diary_id,
+                emoseum_webhook_service=emoseum_webhook_service
             )
 
             journey_result = {
@@ -325,7 +338,7 @@ class ACTTherapySystem:
                 
                 logger.info(f"{analysis_service} GoEmotions 감정 분석 결과: {analysis_result}")
                 
-                return {
+                result = {
                     "diary_text": diary_text,
                     "keywords": analysis_result["keywords"],
                     "vad_scores": analysis_result["vad_scores"],
@@ -335,6 +348,8 @@ class ACTTherapySystem:
                     "emotional_intensity": analysis_result["emotional_intensity"],
                     "top_emotions": analysis_result.get("top_emotions", {})
                 }
+                print(f"[DEBUG] Final emotion analysis result: {result}")
+                return result
             
             else:
                 # GPT 분석기 사용 (기존 방식)
@@ -475,8 +490,12 @@ class ACTTherapySystem:
             artwork_title, gallery_item.emotion_keywords, user_id
         )
 
+        # EmoseumWebhookService 가져오기
+        from ..dependencies import get_emoseum_webhook_service
+        emoseum_webhook_service = get_emoseum_webhook_service()
+        
         success = self.gallery_manager.complete_artwork_title(
-            gallery_item_id, artwork_title, guided_question
+            gallery_item_id, artwork_title, guided_question, emoseum_webhook_service
         )
 
         if not success:
@@ -526,8 +545,12 @@ class ACTTherapySystem:
                 gallery_item=gallery_item,
             )
 
+            # EmoseumWebhookService 가져오기
+            from ..dependencies import get_emoseum_webhook_service
+            emoseum_webhook_service = get_emoseum_webhook_service()
+            
             success = self.gallery_manager.add_docent_message(
-                gallery_item_id, docent_message
+                gallery_item_id, docent_message, emoseum_webhook_service
             )
 
             if not success:

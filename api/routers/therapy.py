@@ -94,6 +94,21 @@ async def submit_diary_entry(
 ):
     """일기 제출 및 감정 분석, 성찰 이미지 생성"""
     try:
+        # 입력 데이터 검증
+        if not diary.diary_text or not diary.diary_text.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Diary text cannot be empty"
+            )
+        
+        if not diary.diary_id or not diary.diary_id.strip():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Diary ID cannot be empty"
+            )
+        
+        logger.info(f"Processing diary entry for user {current_user['user_id']}, diary_id: {diary.diary_id}")
+        
         # ACT 시스템을 통한 감정 여정 처리 (일기 분석 + 이미지 생성)
         result = act_system.process_emotion_journey(
             user_id=current_user["user_id"], diary_text=diary.diary_text
@@ -155,9 +170,11 @@ async def submit_diary_entry(
         raise
     except Exception as e:
         logger.error(f"Error processing diary entry: {e}")
+        logger.error(f"Error type: {type(e).__name__}")
+        logger.error(f"Traceback:", exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to process diary entry",
+            detail=f"Failed to process diary entry: {str(e)}",
         )
 
 
@@ -562,7 +579,7 @@ async def get_session_details(
             ),
             docent_message=(
                 DocentMessage(
-                    message="Docent message generated",
+                    message=gallery_item.guided_question,
                     message_type="encouragement",
                     personalization_data={},
                 )

@@ -1,16 +1,19 @@
 import requests
 import os
 
-def update_emoseum_diary(diary_id, image_path, keywords, primary_emotion):
+def update_emoseum_diary(diary_id, image_path, keywords, primary_emotion, vad_scores=None):
     """AI 처리 완료 후 Emoseum-server DB 업데이트"""
-    webhook_url = f"{os.getenv('EMOSEUM_SERVER_URL', 'http://localhost:3000')}/webhook/diary-update"
+    webhook_url = f"{os.getenv('EMOSEUM_SERVER_URL', 'http://localhost:3000')}/api/ai/webhook/gallery-update"
     
     payload = {
         "diary_id": diary_id,
         "image_path": image_path,
         "keywords": keywords,
-        "primary_emotion": primary_emotion
+        "title": primary_emotion
     }
+    
+    if vad_scores:
+        payload["vad_scores"] = vad_scores
     
     try:
         response = requests.post(webhook_url, json=payload, timeout=10)

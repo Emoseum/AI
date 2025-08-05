@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # Environment
     environment: str = "development"
     
+    # Emoseum server settings
+    emoseum_server_url: str = "http://localhost:3000"
+    
     model_config = {
         "env_file": ".env",
         "case_sensitive": False,

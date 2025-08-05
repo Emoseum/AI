@@ -76,10 +76,17 @@ class PromptArchitect:
         generated_prompt = result["prompt"]
         logger.info(f"Reflection 프롬프트 생성 완료: {len(generated_prompt)} 문자")
 
-        ##
-        with open("./prompt_test/generated_prompt.txt", "w", encoding="utf-8") as f:
-            f.write(generated_prompt)
-        ##
+        # 디버깅용 파일 저장 (선택적)
+        try:
+            import os
+            debug_dir = "./prompt_test"
+            if not os.path.exists(debug_dir):
+                os.makedirs(debug_dir, exist_ok=True)
+            
+            with open(f"{debug_dir}/generated_prompt.txt", "w", encoding="utf-8") as f:
+                f.write(generated_prompt)
+        except Exception as debug_error:
+            logger.warning(f"Debug file save failed (non-critical): {debug_error}")
 
         return generated_prompt
 
